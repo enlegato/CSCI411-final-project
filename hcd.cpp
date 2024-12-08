@@ -1,21 +1,21 @@
 #include <opencv2/opencv.hpp>
 #include <iostream>
 #include <vector>
+#include <cmath>
 
 using namespace std;
 
 struct pix
 {
     cv::Vec3b p;
-    double intensity;
-    vector<vector<double>> M = vector<vector<double>>(2, vector<double>(2, 0.0));
-    double cornerValue;
+    double intensity = 0.0;
+    double cornerValue = 0.0;
 };
 
-// return the intesity of the passed pixel
+// return the intesity of the passed pixel with greyscale weighting
 double intensity(cv::Vec3b pixel)
 {
-    return ((pixel[0] + pixel[1] + pixel[2]) / 3);
+    return ((((double)pixel[0] * 0.114) + ((double)pixel[1] * 0.587) + ((double)pixel[2] * 0.299)) / 3.0);
 }
 
 double calculateIntensityGradient(vector<vector<double>> sk, vector<vector<pix>> pArray, int i, int j)
@@ -26,6 +26,11 @@ double calculateIntensityGradient(vector<vector<double>> sk, vector<vector<pix>>
 double determinant(vector<vector<double>> matrix)
 {
     return ((matrix[0][0] * matrix[1][1]) - (matrix[1][0] * matrix[0][1]));
+}
+
+double trace(vector<vector<double>> matrix)
+{
+    return (matrix[0][0] + matrix[1][1]);
 }
 
 int main(int argc, char **argv)
@@ -68,19 +73,38 @@ int main(int argc, char **argv)
 
     double igx = 0.0;
     double igy = 0.0;
-    // crops in by 1 and calculates gradient
+    // sensitivity value
+    double k = 0.04;
+    // crops in by 1 and calculates gradient and corner value
     for (int i = 1; i < img.cols - 1; ++i)
     {
         for (int j = 1; j < img.rows - 1; ++j)
         {
             igx = calculateIntensityGradient(skx, pArray, i, j);
             igy = calculateIntensityGradient(sky, pArray, i, j);
-            pArray[i][j].M[0][0] = igx * igx;
-            pArray[i][j].M[0][1] = igx * igy;
-            pArray[i][j].M[1][0] = igx * igy;
-            pArray[i][j].M[1][1] = igy * igy;
+
+            vector<vector<double>> M = {
+                {igx * igx, igx * igy},
+                {igx * igy, igy * igy}};
+
+            pArray[i][j].cornerValue = determinant(M) - (k * pow(trace(M), 2));
         }
     }
 
+    // show corners on image
+    double threshold = 100000.0;
+    for (int i = 0; i < img.cols; ++i)
+    {
+        for (int j = 0; j < img.rows; ++j)
+        {
+            if (pArray[i][j].cornerValue > threshold)
+            {
+                img.at<cv::Vec3b>(i, j) = cv::Vec3b(0, 0, 255);
+            }
+        }
+    }
+
+    cv::imshow("Corners", img);
+    cv::waitKey(0);
     return 0;
 }
