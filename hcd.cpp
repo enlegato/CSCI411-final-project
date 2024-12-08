@@ -4,6 +4,7 @@
 #include <cmath>
 
 using namespace std;
+using namespace cv;
 
 struct pix
 {
@@ -11,23 +12,40 @@ struct pix
     double cornerValue = 0.0;
 };
 
-// return the intesity of the passed pixel with greyscale weighting
-double intensity(cv::Vec3b pixel)
+// return the intensity of the passed pixel with grayscale weighting
+double intensityGray(Vec3b pixel)
 {
     return ((((double)pixel[0] * 0.114) + ((double)pixel[1] * 0.587) + ((double)pixel[2] * 0.299)) / 3.0);
 }
 
-double calculateIntensityGradient(vector<vector<double>> sk, vector<vector<pix>> pArray, int i, int j)
+// returns the intesity of the passed pixel
+double intensity(Vec3b pixel)
 {
-    return ((pArray[i + 1][j + 1].intensity * sk[2][2]) + (pArray[i + 1][j].intensity * sk[1][2]) + (pArray[i + 1][j - 1].intensity * sk[0][2]) + (pArray[i][j + 1].intensity * sk[2][1]) + (pArray[i][j].intensity * sk[1][1]) + (pArray[i][j - 1].intensity * sk[0][1]) + (pArray[i - 1][j + 1].intensity * sk[2][0]) + (pArray[i - 1][j].intensity * sk[1][0]) + (pArray[i - 1][j - 1].intensity * sk[0][0]));
+    return ((pixel[0] + pixel[1] + pixel[2]) / 3.0);
 }
 
-double determinant(vector<vector<double>> matrix)
+// returns intensity gradient for matrix
+double calculateIntensityGradient(const Mat &intensity, const vector<vector<double>> &kernel, int i, int j)
+{
+    double result = 0.0;
+    for (int ki = -1; ki <= 1; ++ki)
+    {
+        for (int kj = -1; kj <= 1; ++kj)
+        {
+            result += intensity.at<double>(i + ki, j + kj) * kernel[ki + 1][kj + 1];
+        }
+    }
+    return result;
+}
+
+// gets the determinant of a 2x2 matrix (2d array)
+double determinant(const vector<vector<double>> &matrix)
 {
     return ((matrix[0][0] * matrix[1][1]) - (matrix[1][0] * matrix[0][1]));
 }
 
-double trace(vector<vector<double>> matrix)
+// gets the trace of a 2x2 matrix (2d array)
+double trace(const vector<vector<double>> &matrix)
 {
     return (matrix[0][0] + matrix[1][1]);
 }
@@ -37,33 +55,36 @@ int main(int argc, char **argv)
     // check arguments and load image
     if (argc != 2)
     {
-        std::cerr << "Usage: " << argv[0] << " <image_path>" << std::endl;
+        cerr << "Usage: " << argv[0] << " <image_path>" << endl;
         return -1;
     }
-    cv::Mat img = cv::imread(argv[1], cv::IMREAD_COLOR);
+    Mat img = imread(argv[1], IMREAD_COLOR);
     if (img.empty())
     {
-        std::cerr << "Could not open or find the image" << std::endl;
+        cerr << "Could not open or find the image" << endl;
         return -1;
     }
 
-    // take the image and make a 2d array of its pixels
-    vector<vector<pix>> pArray(img.cols, vector<pix>(img.rows));
-    for (int i = 0; i < img.cols; ++i)
+    // convert to grayscale and double precision
+    Mat gray;
+    cvtColor(img, gray, COLOR_BGR2GRAY);
+    gray.convertTo(gray, CV_64F);
+
+    // initialize and fillpixel array
+    vector<vector<pix>> pArray(gray.rows, vector<pix>(gray.cols));
+    for (int i = 0; i < gray.rows; ++i)
     {
-        for (int j = 0; j < img.rows; ++j)
+        for (int j = 0; j < gray.cols; ++j)
         {
-            pArray[i][j].intensity = intensity(img.at<cv::Vec3b>(i, j));
+            pArray[i][j].intensity = gray.at<double>(i, j);
         }
     }
 
-    // go through and populate each pixels intensity gradient matrix
-    // sobel kernel for x
+    // sobel kernels for x and y gradients
     vector<vector<double>> skx = {
         {-1.0, 0.0, 1.0},
         {-2.0, 0.0, 2.0},
         {-1.0, 0.0, 1.0}};
-    // sobel kernel for y
     vector<vector<double>> sky = {
         {-1.0, -2.0, -1.0},
         {0.0, 0.0, 0.0},
@@ -71,15 +92,15 @@ int main(int argc, char **argv)
 
     double igx = 0.0;
     double igy = 0.0;
-    // sensitivity value
-    double k = 0.04;
-    // crops in by 1 and calculates gradient and corner value
-    for (int i = 1; i < img.cols - 1; ++i)
+    double k = 0.05;
+
+    // calculate gradients and corner values
+    for (int i = 1; i < gray.rows - 1; ++i)
     {
-        for (int j = 1; j < img.rows - 1; ++j)
+        for (int j = 1; j < gray.cols - 1; ++j)
         {
-            igx = calculateIntensityGradient(skx, pArray, i, j);
-            igy = calculateIntensityGradient(sky, pArray, i, j);
+            igx = calculateIntensityGradient(gray, skx, i, j);
+            igy = calculateIntensityGradient(gray, sky, i, j);
 
             vector<vector<double>> M = {
                 {igx * igx, igx * igy},
@@ -89,20 +110,22 @@ int main(int argc, char **argv)
         }
     }
 
-    // show corners on image
-    double threshold = 100000.0;
-    for (int i = 0; i < img.cols; ++i)
+    // threshold and mark corners
+    double threshold = 75.0;
+    for (int i = 1; i < gray.rows - 1; ++i)
     {
-        for (int j = 0; j < img.rows; ++j)
+        for (int j = 1; j < gray.cols - 1; ++j)
         {
             if (pArray[i][j].cornerValue > threshold)
             {
-                img.at<cv::Vec3b>(i, j) = cv::Vec3b(0, 0, 255);
+                circle(img, Point(j, i), 5, Scalar(0, 0, 255), 1);
             }
         }
     }
 
-    cv::imshow("Corners", img);
-    cv::waitKey(0);
+    // display the image with marked corners
+    imshow("Corners", img);
+    waitKey(0);
+
     return 0;
 }
