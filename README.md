@@ -3,11 +3,13 @@
 ## Description
 
 Author - Elias Legato
+
 Harris corner detection
 
 ## Dependantcies
 
 - OpenCV
+
 install OpenCV on linux with: 
 sudo apt-get install libopencv-dev
 
