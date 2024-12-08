@@ -6,48 +6,87 @@
 using namespace std;
 using namespace cv;
 
-struct pix
+// load image and convert to gray matrix of doubles
+Mat loadAndConvertToGray(const char *imagePath)
 {
-    double intensity = 0.0;
-    double cornerValue = 0.0;
-};
-
-// return the intensity of the passed pixel with grayscale weighting
-double intensityGray(Vec3b pixel)
-{
-    return ((((double)pixel[0] * 0.114) + ((double)pixel[1] * 0.587) + ((double)pixel[2] * 0.299)) / 3.0);
-}
-
-// returns the intesity of the passed pixel
-double intensity(Vec3b pixel)
-{
-    return ((pixel[0] + pixel[1] + pixel[2]) / 3.0);
-}
-
-// returns intensity gradient for matrix
-double calculateIntensityGradient(const Mat &intensity, const vector<vector<double>> &kernel, int i, int j)
-{
-    double result = 0.0;
-    for (int ki = -1; ki <= 1; ++ki)
+    Mat img = imread(imagePath, IMREAD_COLOR);
+    if (img.empty())
     {
-        for (int kj = -1; kj <= 1; ++kj)
+        cerr << "Could not open or find the image" << endl;
+        exit(-1);
+    }
+
+    Mat gray;
+    cvtColor(img, gray, COLOR_BGR2GRAY);
+    gray.convertTo(gray, CV_64F);
+    return gray;
+}
+
+// calculates gradient, crops by 1 pixel then goes through 3x3 matrix to get convolution
+Mat calculateGradient(const Mat &src, const vector<vector<double>> &kernel)
+{
+    // matrix the same size as image
+    Mat grad = Mat::zeros(src.size(), CV_64F);
+    double sum;
+    for (int i = 1; i < src.rows - 1; i++)
+    {
+        for (int j = 1; j < src.cols - 1; j++)
         {
-            result += intensity.at<double>(i + ki, j + kj) * kernel[ki + 1][kj + 1];
+            // get convolution of image at (i, j) and kernel
+            sum = 0.0;
+            for (int k = -1; k <= 1; k++)
+            {
+                for (int l = -1; l <= 1; l++)
+                {
+                    sum += src.at<double>(i + k, j + l) * kernel[k + 1][l + 1];
+                }
+            }
+            grad.at<double>(i, j) = sum;
         }
     }
-    return result;
+    return grad;
 }
 
-// gets the determinant of a 2x2 matrix (2d array)
-double determinant(const vector<vector<double>> &matrix)
+// guassian blur to smoth products
+Mat applyGaussian(const Mat &src, int ksize, double sigma)
 {
-    return ((matrix[0][0] * matrix[1][1]) - (matrix[1][0] * matrix[0][1]));
+    Mat dst;
+    GaussianBlur(src, dst, Size(ksize, ksize), sigma);
+    return dst;
 }
 
-// gets the trace of a 2x2 matrix (2d array)
-double trace(const vector<vector<double>> &matrix)
+// returns matrix of harris responses(corner value)
+Mat computeHarrisResponse(const Mat &gradXX, const Mat &gradYY, const Mat &gradXY, double k)
 {
-    return (matrix[0][0] + matrix[1][1]);
+    Mat response = Mat::zeros(gradXX.size(), CV_64F);
+    for (int i = 0; i < gradXX.rows; ++i)
+    {
+        for (int j = 0; j < gradXX.cols; ++j)
+        {
+            double xx = gradXX.at<double>(i, j);
+            double yy = gradYY.at<double>(i, j);
+            double xy = gradXY.at<double>(i, j);
+            double det = xx * yy - xy * xy;
+            double trace = xx + yy;
+            response.at<double>(i, j) = det - k * trace * trace;
+        }
+    }
+    return response;
+}
+
+// put a circle around each response greater than threshold
+void markCorners(Mat &img, const Mat &response, double threshold)
+{
+    for (int i = 0; i < response.rows; ++i)
+    {
+        for (int j = 0; j < response.cols; ++j)
+        {
+            if (response.at<double>(i, j) > threshold)
+            {
+                circle(img, Point(j, i), 5, Scalar(0, 0, 255), 1);
+            }
+        }
+    }
 }
 
 int main(int argc, char **argv)
@@ -55,77 +94,49 @@ int main(int argc, char **argv)
     // check arguments and load image
     if (argc != 2)
     {
-        cerr << "Usage: " << argv[0] << " <image_path>" << endl;
-        return -1;
-    }
-    Mat img = imread(argv[1], IMREAD_COLOR);
-    if (img.empty())
-    {
-        cerr << "Could not open or find the image" << endl;
+        std::cerr << "Usage: " << argv[0] << " <image_path>" << std::endl;
         return -1;
     }
 
-    // convert to grayscale and double precision
-    Mat gray;
-    cvtColor(img, gray, COLOR_BGR2GRAY);
-    gray.convertTo(gray, CV_64F);
+    // matrix of intensity (gray scale)
+    Mat gray = loadAndConvertToGray(argv[1]);
 
-    // initialize and fillpixel array
-    vector<vector<pix>> pArray(gray.rows, vector<pix>(gray.cols));
-    for (int i = 0; i < gray.rows; ++i)
-    {
-        for (int j = 0; j < gray.cols; ++j)
-        {
-            pArray[i][j].intensity = gray.at<double>(i, j);
-        }
-    }
-
-    // sobel kernels for x and y gradients
+    // sobel kernel in the x direction
     vector<vector<double>> skx = {
         {-1.0, 0.0, 1.0},
         {-2.0, 0.0, 2.0},
         {-1.0, 0.0, 1.0}};
+
+    // sobel kernel in the y direction
     vector<vector<double>> sky = {
         {-1.0, -2.0, -1.0},
         {0.0, 0.0, 0.0},
         {1.0, 2.0, 1.0}};
 
-    double igx = 0.0;
-    double igy = 0.0;
-    double k = 0.05;
+    //
+    Mat gradX = calculateGradient(gray, skx);
+    Mat gradY = calculateGradient(gray, sky);
 
-    // calculate gradients and corner values
-    for (int i = 1; i < gray.rows - 1; ++i)
-    {
-        for (int j = 1; j < gray.cols - 1; ++j)
-        {
-            igx = calculateIntensityGradient(gray, skx, i, j);
-            igy = calculateIntensityGradient(gray, sky, i, j);
+    // use gradients to get gradient matrix for image
+    Mat gradXX = gradX.mul(gradX);
+    Mat gradYY = gradY.mul(gradY);
+    Mat gradXY = gradX.mul(gradY);
 
-            vector<vector<double>> M = {
-                {igx * igx, igx * igy},
-                {igx * igy, igy * igy}};
+    // gradients with guassian filter for image
+    Mat gaussXX = applyGaussian(gradXX, 3, 1.5);
+    Mat gaussYY = applyGaussian(gradYY, 3, 1.5);
+    Mat gaussXY = applyGaussian(gradXY, 3, 1.5);
 
-            pArray[i][j].cornerValue = determinant(M) - (k * pow(trace(M), 2));
-        }
-    }
+    // matrix of harris responses using guassian filtered matrixes
+    Mat harrisResponse = computeHarrisResponse(gaussXX, gaussYY, gaussXY, 0.05);
 
-    // threshold and mark corners
-    double threshold = 75.0;
-    for (int i = 1; i < gray.rows - 1; ++i)
-    {
-        for (int j = 1; j < gray.cols - 1; ++j)
-        {
-            if (pArray[i][j].cornerValue > threshold)
-            {
-                circle(img, Point(j, i), 5, Scalar(0, 0, 255), 1);
-            }
-        }
-    }
+    // get regular image and overlay circles around corners
+    Mat img = imread(argv[1], IMREAD_COLOR);
+    markCorners(img, harrisResponse, 29950000000.0);
 
     // display the image with marked corners
-    imshow("Corners", img);
-    waitKey(0);
+    cv::imshow("Corners", img);
+    cv::waitKey(0);
 
     return 0;
 }
