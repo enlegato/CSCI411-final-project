@@ -8,7 +8,7 @@ struct pix
 {
     cv::Vec3b p;
     double intensity;
-    vector<vector<double>> M;
+    vector<vector<double>> M = vector<vector<double>>(2, vector<double>(2, 0.0));
     double cornerValue;
 };
 
@@ -20,7 +20,12 @@ double intensity(cv::Vec3b pixel)
 
 double calculateIntensityGradient(vector<vector<double>> sk, vector<vector<pix>> pArray, int i, int j)
 {
-    return ((pArray[i + 1][j + 1].intensity * sk[i + 1][j + 1]) + (pArray[i + 1][j].intensity * sk[i + 1][j]) + (pArray[i + 1][j - 1].intensity * sk[i + 1][j - 1]) + (pArray[i][j + 1].intensity * sk[i][j + 1]) + (pArray[i][j].intensity * sk[i][j]) + (pArray[i][j - 1].intensity * sk[i][j - 1]) + (pArray[i - 1][j + 1].intensity * sk[i - 1][j + 1]) + (pArray[i - 1][j].intensity * sk[i - 1][j]) + (pArray[i - 1][j - 1].intensity * sk[i - 1][j - 1]));
+    return ((pArray[i + 1][j + 1].intensity * sk[2][2]) + (pArray[i + 1][j].intensity * sk[1][2]) + (pArray[i + 1][j - 1].intensity * sk[0][2]) + (pArray[i][j + 1].intensity * sk[2][1]) + (pArray[i][j].intensity * sk[1][1]) + (pArray[i][j - 1].intensity * sk[0][1]) + (pArray[i - 1][j + 1].intensity * sk[2][0]) + (pArray[i - 1][j].intensity * sk[1][0]) + (pArray[i - 1][j - 1].intensity * sk[0][0]));
+}
+
+double determinant(vector<vector<double>> matrix)
+{
+    return ((matrix[0][0] * matrix[1][1]) - (matrix[1][0] * matrix[0][1]));
 }
 
 int main(int argc, char **argv)
@@ -63,11 +68,17 @@ int main(int argc, char **argv)
 
     double igx = 0.0;
     double igy = 0.0;
+    // crops in by 1 and calculates gradient
     for (int i = 1; i < img.cols - 1; ++i)
     {
         for (int j = 1; j < img.rows - 1; ++j)
         {
             igx = calculateIntensityGradient(skx, pArray, i, j);
+            igy = calculateIntensityGradient(sky, pArray, i, j);
+            pArray[i][j].M[0][0] = igx * igx;
+            pArray[i][j].M[0][1] = igx * igy;
+            pArray[i][j].M[1][0] = igx * igy;
+            pArray[i][j].M[1][1] = igy * igy;
         }
     }
 
