@@ -18,4 +18,4 @@ sudo apt-get install libopencv-dev
 - use make in cmd line to compile
 - ./hcd FilePath threshold
 
-the program will take the image you feed it and add small red circles at all the corners detected using the input threshold, around 153500000.0 for the threshold works for most images, 
+the program will take the image you feed it and add small red circles at all the corners detected using the input threshold, around 153500000.0 for the threshold works for most images. for some images change threshold by removing or adding 0s. 
