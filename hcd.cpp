@@ -7,7 +7,6 @@ using namespace std;
 
 struct pix
 {
-    cv::Vec3b p;
     double intensity = 0.0;
     double cornerValue = 0.0;
 };
@@ -54,8 +53,7 @@ int main(int argc, char **argv)
     {
         for (int j = 0; j < img.rows; ++j)
         {
-            pArray[i][j].p = img.at<cv::Vec3b>(i, j);
-            pArray[i][j].intensity = intensity(pArray[i][j].p);
+            pArray[i][j].intensity = intensity(img.at<cv::Vec3b>(i, j));
         }
     }
 
