@@ -92,11 +92,13 @@ void markCorners(Mat &img, const Mat &response, double threshold)
 int main(int argc, char **argv)
 {
     // check arguments and load image
-    if (argc != 2)
+    if (argc != 3)
     {
-        std::cerr << "Usage: " << argv[0] << " <image_path>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <image_path>" << " <threshold>" << std::endl;
         return -1;
     }
+
+    double threshold = atof(argv[2]);
 
     // matrix of intensity (gray scale)
     Mat gray = loadAndConvertToGray(argv[1]);
@@ -113,7 +115,7 @@ int main(int argc, char **argv)
         {0.0, 0.0, 0.0},
         {1.0, 2.0, 1.0}};
 
-    //
+    // gets gradient for each pixel in x and y directions
     Mat gradX = calculateGradient(gray, skx);
     Mat gradY = calculateGradient(gray, sky);
 
@@ -132,10 +134,13 @@ int main(int argc, char **argv)
 
     // get regular image and overlay circles around corners
     Mat img = imread(argv[1], IMREAD_COLOR);
-    markCorners(img, harrisResponse, 29950000000.0);
+    markCorners(img, harrisResponse, threshold);
 
-    // display the image with marked corners
-    cv::imshow("Corners", img);
+    // display the image with marked corners and resize the window
+    Size windowSize(800, 600);
+    Mat resizedImg;
+    resize(img, resizedImg, windowSize);
+    cv::imshow("Corners", resizedImg);
     cv::waitKey(0);
 
     return 0;
