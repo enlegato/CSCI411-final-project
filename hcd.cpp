@@ -137,7 +137,7 @@ int main(int argc, char **argv)
     markCorners(img, harrisResponse, threshold);
 
     // display the image with marked corners and resize the window
-    Size windowSize(800, 600);
+    Size windowSize(1000, 860);
     Mat resizedImg;
     resize(img, resizedImg, windowSize);
     cv::imshow("Corners", resizedImg);
