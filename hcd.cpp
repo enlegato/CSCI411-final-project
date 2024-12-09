@@ -59,9 +59,9 @@ Mat applyGaussian(const Mat &src, int ksize, double sigma)
 Mat computeHarrisResponse(const Mat &gradXX, const Mat &gradYY, const Mat &gradXY, double k)
 {
     Mat response = Mat::zeros(gradXX.size(), CV_64F);
-    for (int i = 0; i < gradXX.rows; ++i)
+    for (int i = 0; i < gradXX.rows; i++)
     {
-        for (int j = 0; j < gradXX.cols; ++j)
+        for (int j = 0; j < gradXX.cols; j++)
         {
             double xx = gradXX.at<double>(i, j);
             double yy = gradYY.at<double>(i, j);
@@ -77,9 +77,9 @@ Mat computeHarrisResponse(const Mat &gradXX, const Mat &gradYY, const Mat &gradX
 // put a circle around each response greater than threshold
 void markCorners(Mat &img, const Mat &response, double threshold)
 {
-    for (int i = 0; i < response.rows; ++i)
+    for (int i = 0; i < response.rows; i++)
     {
-        for (int j = 0; j < response.cols; ++j)
+        for (int j = 0; j < response.cols; j++)
         {
             if (response.at<double>(i, j) > threshold)
             {
