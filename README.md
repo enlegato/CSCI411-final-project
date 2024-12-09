@@ -10,8 +10,9 @@ Harris corner detection
 
 - OpenCV
 
-install OpenCV on linux or wsl with: 
-sudo apt-get install libopencv-dev
+after running: sudo apt update
+
+install OpenCV on linux or wsl with: sudo apt-get install libopencv-dev
 
 ## use Instructions
 
